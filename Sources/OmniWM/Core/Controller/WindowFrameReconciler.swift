@@ -10,6 +10,8 @@ final class WindowFrameReconciler {
     private var reconciliationTask: Task<Void, Never>?
     private var highFrequencyUntil: Date?
 
+    private var lastGestureSettledAt: Date?
+
     private static let standardIntervalNanos: UInt64 = 1_500_000_000 // 1.5 seconds
     private static let highFrequencyIntervalNanos: UInt64 = 100_000_000 // 100ms (high frequency burst post-move)
 
@@ -41,6 +43,7 @@ final class WindowFrameReconciler {
     }
 
     func triggerHighFrequencyBurst(durationSeconds: TimeInterval = 10.0) {
+        lastGestureSettledAt = Date()
         highFrequencyUntil = Date().addingTimeInterval(durationSeconds)
     }
 
@@ -95,7 +98,9 @@ final class WindowFrameReconciler {
             }
 
             // Auto-fix overlapping tiled windows (glitched overlay recovery)
-            if observedFrames.count > 1 {
+            // Deferred 2.5 seconds after a gesture to prevent anti-overlap and interactive resizes from fighting.
+            let isSettledForAntiOverlap = (lastGestureSettledAt == nil || Date().timeIntervalSince(lastGestureSettledAt!) >= 2.5)
+            if observedFrames.count > 1 && isSettledForAntiOverlap {
                 for i in 0..<observedFrames.count {
                     for j in (i + 1)..<observedFrames.count {
                         let a = observedFrames[i]
