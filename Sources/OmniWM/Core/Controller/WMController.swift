@@ -223,10 +223,7 @@ final class WMController {
         if let windowActionHandlerStorage {
             return windowActionHandlerStorage
         }
-        let handler = WindowActionHandler(
-            controller: self,
-            orderWindow: windowFocusOperations.orderWindow
-        )
+        let handler = WindowActionHandler(controller: self)
         windowActionHandlerStorage = handler
         return handler
     }
@@ -283,6 +280,9 @@ final class WMController {
         }
         axManager.isWindowParked = { [workspaceManager] windowId in
             workspaceManager.entry(forWindowId: windowId)?.hiddenState != nil
+        }
+        axManager.interactionPolicyForWindowId = { [workspaceManager] windowId in
+            workspaceManager.entry(forWindowId: windowId)?.interactionPolicy ?? .full
         }
         intentLedger.seqProvider = { [eventIntake] in eventIntake.lastSeq }
         intentLedger.deadlineWheel = deadlineWheel
@@ -3173,9 +3173,25 @@ extension WMController {
         windowId: Int,
         axRef: AXWindowRef
     ) {
-        windowFocusOperations.activateApp(pid)
+        let policy = workspaceManager.entry(forWindowId: windowId)?.interactionPolicy ?? .full
+        guard policy.mayFocus,
+              focusPolicyEngine.evaluate(.windowFronting).allowsFocusChange
+        else {
+            return
+        }
+        if policy.mayActivateApp {
+            windowFocusOperations.activateApp(pid)
+        }
         windowFocusOperations.focusSpecificWindow(pid, UInt32(windowId), axRef.element)
-        windowFocusOperations.raiseWindow(axRef.element)
+        if policy.mayRaise {
+            windowFocusOperations.raiseWindow(axRef.element)
+        }
+    }
+
+    func performWindowOrdering(windowId: Int) {
+        let policy = workspaceManager.entry(forWindowId: windowId)?.interactionPolicy ?? .full
+        guard policy.mayOrder else { return }
+        windowFocusOperations.orderWindow(UInt32(windowId))
     }
 
     func retryManagedFocusFronting(_ request: ManagedFocusRequest) {

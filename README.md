@@ -144,6 +144,23 @@ This fork includes several custom enhancements, bug fixes, and stability improve
       <sub>@janhesters</sub>
     </td>
     <td align="center" valign="top">
+      <a href="https://github.com/spotify">
+        <img src="https://avatars.githubusercontent.com/u/251374?v=4" width="72" alt="Spotify">
+      </a>
+      <br>
+      <a href="https://github.com/spotify"><strong>Spotify</strong></a>
+      <br>
+      <sub>━━━━━━━━</sub>
+      <br>
+      <a href="https://github.com/Cy6erBr4in" title="Alexander Dergachev">
+        <img src="https://github.com/Cy6erBr4in.png?size=96" width="72" alt="Alexander Dergachev">
+      </a>
+      <br>
+      <a href="https://github.com/Cy6erBr4in"><strong>Alexander Dergachev</strong></a>
+      <br>
+      <sub>@Cy6erBr4in</sub>
+    </td>
+    <td align="center" valign="top">
       <a href="https://www.vhf.com">
         <img src="https://www.google.com/s2/favicons?domain=www.vhf.com&sz=96" width="72" alt="vhf">
       </a>
@@ -253,6 +270,9 @@ This fork includes several custom enhancements, bug fixes, and stability improve
       </a>
       <a href="https://github.com/Guria" title="Aleksei Gurianov">
         <img src="https://github.com/Guria.png?size=96" width="72" alt="Aleksei Gurianov">
+      </a>
+      <a href="https://github.com/Cy6erBr4in" title="Alexander Dergachev">
+        <img src="https://github.com/Cy6erBr4in.png?size=96" width="72" alt="Alexander Dergachev">
       </a>
       <a href="https://github.com/gloomy-breaker" title="Ayaan Sandhu">
         <img src="https://github.com/gloomy-breaker.png?size=96" width="72" alt="Ayaan Sandhu">
@@ -484,7 +504,7 @@ Use the `Toggle Workspace Layout` shortcut below to switch layouts per workspace
 
 ### Keyboard Shortcuts
 
-All shortcuts are customizable in Settings > Hotkeys. `Hyper` is the literal `Control + Option + Shift + Command` chord. Optionally pick a **System Hyper Trigger** — a single key (Caps Lock, F13–F20, or a left- or right-side modifier) or an extra mouse button that acts as `Hyper` while held (this needs Input Monitoring permission). Leave the trigger as `None` if you already produce `Hyper` another way, such as a Karabiner Elements remap. The tables below list all the default hotkeys:
+All shortcuts are customizable in Settings > Hotkeys. `Hyper` is the literal `Control + Option + Shift + Command` chord by default; which modifiers make up `Hyper` is configurable in Settings > Hotkeys (for example, exclude `Shift` to keep `Hyper + Shift + …` free for extra bindings). Changing the combination retargets every shortcut that currently resolves to `Hyper` onto the new one, so the shortcut list updates in place as you toggle the modifiers. Optionally pick a **System Hyper Trigger** — a single key (Caps Lock, F13–F20, or a left- or right-side modifier) or an extra mouse button that acts as `Hyper` while held (this needs Input Monitoring permission). Leave the trigger as `None` if you already produce `Hyper` another way, such as a Karabiner Elements remap. The tables below list all the default hotkeys:
 
 Layout legend:
 - `Shared` works in any active layout.
@@ -540,8 +560,11 @@ Layout legend:
 | Focus Previous Monitor | `Unassigned` | `Shared` |
 | Focus Last Monitor | `` Control + Command + ` `` | `Shared` |
 | Move Workspace to Left / Right / Up / Down Monitor | `Unassigned` | `Shared` |
+| Move Window to Left / Right / Up / Down Monitor | `Unassigned` | `Shared` |
 
 The workspace-to-monitor actions target the active workspace and intentionally use the same temporary runtime override as `omniwmctl workspace move-to-monitor --force`. They do not rewrite the workspace's Home Monitor or swap workspaces, and unsafe fullscreen, hidden-app, scratchpad, or focus states still block the move.
+
+The window-to-monitor actions send the focused window directly to the current workspace on the adjacent routed display, independently of **Move Window Across Monitor at Edge**. They do not wrap when no monitor exists in that direction. **Follow Window to Monitor** controls whether focus follows the window; when it is off, you remain in the source workspace.
 
 #### Layout
 

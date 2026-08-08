@@ -98,6 +98,17 @@ struct WindowDecision: Equatable, Sendable {
         trackedMode != nil
     }
 
+    var reflectsExplicitUserIntent: Bool {
+        switch source {
+        case .manualOverride,
+             .userRule:
+            true
+        case .builtInRule,
+             .heuristic:
+            false
+        }
+    }
+
     var isResolved: Bool {
         disposition != .undecided
     }
@@ -242,13 +253,8 @@ final class WindowRuleEngine {
     static let ownedWindowRuleName = "ownedWindow"
     nonisolated static let helpTagSurfaceRuleName = "helpTagSurface"
     nonisolated static let transientWidgetSurfaceRuleName = "transientWidgetSurface"
+    nonisolated static let hiddenTitleBarWindowRuleName = "hiddenTitleBarWindow"
     private static let cleanShotRecordingOverlayRuleName = "cleanShotRecordingOverlay"
-    private static let systemTextInputPanelBundleIds: Set<String> = [
-        "com.apple.characterpaletteim",
-        "com.apple.emojifunctionrowitem-container",
-        "com.apple.textinputmenuagent",
-        "com.apple.textinputswitcher"
-    ]
 
     private enum RuleSource {
         case user
@@ -349,8 +355,20 @@ final class WindowRuleEngine {
     private(set) var invalidRegexMessagesByRuleId: [UUID: String] = [:]
 
     private(set) var hasDynamicReevaluationRules = false
+    private let inputMethodBundleIds: Set<String>
+    private let hiddenTitleBarFullscreenButtonOptionalBundleIds: Set<String>
+    private let hiddenTitleBarNonStandardSubroleBundleIds: Set<String>
 
-    init() {
+    init(
+        inputMethodBundleIds: Set<String>? = nil,
+        hiddenTitleBarFullscreenButtonOptionalBundleIds: Set<String>? = nil,
+        hiddenTitleBarNonStandardSubroleBundleIds: Set<String>? = nil
+    ) {
+        self.hiddenTitleBarFullscreenButtonOptionalBundleIds = hiddenTitleBarFullscreenButtonOptionalBundleIds
+            ?? HiddenTitleBarRegistry.fullscreenButtonOptionalBundleIds
+        self.hiddenTitleBarNonStandardSubroleBundleIds = hiddenTitleBarNonStandardSubroleBundleIds
+            ?? HiddenTitleBarRegistry.nonStandardSubroleBundleIds
+        self.inputMethodBundleIds = inputMethodBundleIds ?? InputMethodBundleRegistry.discover()
         builtInRules = Self.makeBuiltInRules()
         titleRules = builtInRules.filter(\.requiresTitle)
         hasDynamicReevaluationRules = builtInRules.contains { $0.requiresDynamicReevaluation }
@@ -447,7 +465,7 @@ final class WindowRuleEngine {
         }
 
         if let bundleId = facts.ax.bundleId?.lowercased(),
-           Self.systemTextInputPanelBundleIds.contains(bundleId)
+           inputMethodBundleIds.contains(bundleId)
         {
             return WindowDecision(
                 disposition: .unmanaged,
@@ -572,10 +590,25 @@ final class WindowRuleEngine {
             return transientWidgetDecision
         }
 
-        let heuristic = AXWindowService.heuristicDisposition(
+        if HiddenTitleBarRegistry.decision(
             for: facts.ax,
-            sizeConstraints: facts.sizeConstraints
-        )
+            windowServer: facts.windowServer,
+            fullscreenButtonOptionalBundleIds: hiddenTitleBarFullscreenButtonOptionalBundleIds,
+            nonStandardSubroleBundleIds: hiddenTitleBarNonStandardSubroleBundleIds
+        ) {
+            return WindowDecision(
+                disposition: .managed,
+                source: .builtInRule(Self.hiddenTitleBarWindowRuleName),
+                layoutDecisionKind: .fallbackLayout,
+                workspaceName: workspaceName,
+                ruleEffects: effects,
+                admissionHints: admissionHints,
+                heuristicReasons: [],
+                deferredReason: nil
+            )
+        }
+
+        let heuristic = AXWindowService.heuristicDisposition(for: facts.ax)
 
         return WindowDecision(
             disposition: heuristic.disposition,
@@ -828,7 +861,7 @@ final class WindowRuleEngine {
         rules.append(
             CompiledRule(
                 rule: AppRule(
-                    bundleId: "com.valvesoftware.steam",
+                    bundleId: "com.valvesoftware.steam.helper",
                     layout: .tile
                 ),
                 source: .builtIn("steamClient"),

@@ -101,7 +101,8 @@ final class WorkspaceManager {
                     lifecyclePhase: entry.lifecyclePhase,
                     observedState: entry.observedState,
                     desiredState: entry.desiredState,
-                    restoreIntent: entry.restoreIntent
+                    restoreIntent: entry.restoreIntent,
+                    interactionPolicy: entry.interactionPolicy
                 )
             }
 
@@ -2246,8 +2247,8 @@ final class WorkspaceManager {
         world.admissionHints(for: token)
     }
 
-    func setHeuristicReasons(_ reasons: [AXWindowHeuristicReason], for token: WindowToken) {
-        world.setHeuristicReasons(reasons, for: token)
+    func setInteractionPolicy(_ policy: WindowInteractionPolicy, for token: WindowToken) {
+        world.setInteractionPolicy(policy, for: token)
     }
 
     func setNiriRestorePlacements(_ placements: [WindowToken: PersistedNiriPlacement]) {
