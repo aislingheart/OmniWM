@@ -3,27 +3,6 @@
 > [!NOTE]
 > **Personal Fork**: This repository is a custom fork of [OmniWM](https://github.com/BarutSRB/OmniWM) modified and maintained for personal use.
 
-## Personal Fork Changes & Improvements
-
-This fork includes several custom enhancements, bug fixes, and stability improvements:
-
-### 🖱️ Mouse Interaction & Window Dragging
-- **Title Bar Hold-and-Drag**: Instant native click pass-through for window titlebars, traffic light buttons (close/minimize/zoom), and app tabs. Holding down on a titlebar (>180ms or 5pt distance) automatically promotes to active window movement.
-- **Hover Mode Drop Target Preview**: Moving windows interactively or via titlebar hold-and-drag activates window placement preview overlays ("hover mode"), showing precise split and placement regions before release.
-
-### 📐 Window Resizing & Layout Persistence
-- **Fixed Window Resize Snap-Back**: Updated `DwindleLayoutEngine+InteractiveResize` and `AXEventHandler` frame change processing to calculate split ratios directly from width and height deltas. Resized windows permanently retain their dimensions across accessibility events, layout refreshes, and display reconciliations.
-
-### 📋 Menu & Dropdown UI Enhancements
-- **Synchronous Submenu Loading**: Updated `MenuAnywhereController` to populate submenus synchronously on mouse hover, eliminating truncated or misaligned menu dropdown windows.
-- **Status Menu Clarity**: Cleaned up `StatusMenuView` action rows (e.g. "Settings", "App Rules") by removing misleading submenu chevron arrows (`>`) for items that open standalone windows.
-
-### 🖥️ macOS 27 Compatibility & Bug Fixes
-- **Full macOS 27 Compatibility**: Resolved window server reconciliation, event tap thread isolation, and frame calculation issues that previously caused glitches and difficult window management on macOS 27. Fully tested and verified for seamless operation on macOS 27.
-
-### 🛡️ System Robustness & Window Reconciler
-- **Automatic Window Frame Reconciler (`WindowFrameReconciler`)**: Periodic background monitor that detects off-screen glitched windows (e.g. left offscreen post-drag) or overlapping tiled windows, automatically re-seating them into proper layout frames.
-
 ## Demo Video
 
 [![Watch the demo](https://img.youtube.com/vi/WcHjGkuD2Fc/maxresdefault.jpg)](https://youtu.be/WcHjGkuD2Fc)
@@ -144,23 +123,6 @@ This fork includes several custom enhancements, bug fixes, and stability improve
       <sub>@janhesters</sub>
     </td>
     <td align="center" valign="top">
-      <a href="https://github.com/spotify">
-        <img src="https://avatars.githubusercontent.com/u/251374?v=4" width="72" alt="Spotify">
-      </a>
-      <br>
-      <a href="https://github.com/spotify"><strong>Spotify</strong></a>
-      <br>
-      <sub>━━━━━━━━</sub>
-      <br>
-      <a href="https://github.com/Cy6erBr4in" title="Alexander Dergachev">
-        <img src="https://github.com/Cy6erBr4in.png?size=96" width="72" alt="Alexander Dergachev">
-      </a>
-      <br>
-      <a href="https://github.com/Cy6erBr4in"><strong>Alexander Dergachev</strong></a>
-      <br>
-      <sub>@Cy6erBr4in</sub>
-    </td>
-    <td align="center" valign="top">
       <a href="https://www.vhf.com">
         <img src="https://www.google.com/s2/favicons?domain=www.vhf.com&sz=96" width="72" alt="vhf">
       </a>
@@ -270,9 +232,6 @@ This fork includes several custom enhancements, bug fixes, and stability improve
       </a>
       <a href="https://github.com/Guria" title="Aleksei Gurianov">
         <img src="https://github.com/Guria.png?size=96" width="72" alt="Aleksei Gurianov">
-      </a>
-      <a href="https://github.com/Cy6erBr4in" title="Alexander Dergachev">
-        <img src="https://github.com/Cy6erBr4in.png?size=96" width="72" alt="Alexander Dergachev">
       </a>
       <a href="https://github.com/gloomy-breaker" title="Ayaan Sandhu">
         <img src="https://github.com/gloomy-breaker.png?size=96" width="72" alt="Ayaan Sandhu">
@@ -504,7 +463,7 @@ Use the `Toggle Workspace Layout` shortcut below to switch layouts per workspace
 
 ### Keyboard Shortcuts
 
-All shortcuts are customizable in Settings > Hotkeys. `Hyper` is the literal `Control + Option + Shift + Command` chord by default; which modifiers make up `Hyper` is configurable in Settings > Hotkeys (for example, exclude `Shift` to keep `Hyper + Shift + …` free for extra bindings). Changing the combination retargets every shortcut that currently resolves to `Hyper` onto the new one, so the shortcut list updates in place as you toggle the modifiers. Optionally pick a **System Hyper Trigger** — a single key (Caps Lock, F13–F20, or a left- or right-side modifier) or an extra mouse button that acts as `Hyper` while held (this needs Input Monitoring permission). Leave the trigger as `None` if you already produce `Hyper` another way, such as a Karabiner Elements remap. The tables below list all the default hotkeys:
+All shortcuts are customizable in Settings > Hotkeys. `Hyper` is the literal `Control + Option + Shift + Command` chord. Optionally pick a **System Hyper Trigger** — a single key (Caps Lock, F13–F20, or a left- or right-side modifier) or an extra mouse button that acts as `Hyper` while held (this needs Input Monitoring permission). Leave the trigger as `None` if you already produce `Hyper` another way, such as a Karabiner Elements remap. The tables below list all the default hotkeys:
 
 Layout legend:
 - `Shared` works in any active layout.
@@ -560,11 +519,8 @@ Layout legend:
 | Focus Previous Monitor | `Unassigned` | `Shared` |
 | Focus Last Monitor | `` Control + Command + ` `` | `Shared` |
 | Move Workspace to Left / Right / Up / Down Monitor | `Unassigned` | `Shared` |
-| Move Window to Left / Right / Up / Down Monitor | `Unassigned` | `Shared` |
 
 The workspace-to-monitor actions target the active workspace and intentionally use the same temporary runtime override as `omniwmctl workspace move-to-monitor --force`. They do not rewrite the workspace's Home Monitor or swap workspaces, and unsafe fullscreen, hidden-app, scratchpad, or focus states still block the move.
-
-The window-to-monitor actions send the focused window directly to the current workspace on the adjacent routed display, independently of **Move Window Across Monitor at Edge**. They do not wrap when no monitor exists in that direction. **Follow Window to Monitor** controls whether focus follows the window; when it is off, you remain in the source workspace.
 
 #### Layout
 

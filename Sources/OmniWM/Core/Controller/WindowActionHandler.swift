@@ -56,6 +56,7 @@ final class WindowActionHandler {
     }
 
     weak var controller: WMController?
+    private let orderWindow: (UInt32) -> Void
     private let visibleWindowInfoProvider: () -> [WindowServerInfo]
     private let visibleOwnedWindowsProvider: () -> [NSWindow]
     private let frontOwnedWindow: (NSWindow) -> Void
@@ -80,21 +81,19 @@ final class WindowActionHandler {
 
     init(
         controller: WMController,
-        visibleWindowInfoProvider: @escaping () -> [WindowServerInfo] = {
-            SkyLight.shared.queryAllVisibleWindows()
-        },
-        visibleOwnedWindowsProvider: @escaping () -> [NSWindow] = {
-            OwnedWindowRegistry.shared.visibleWindows(kind: .utility)
-        },
-        frontOwnedWindow: @escaping (NSWindow) -> Void = { window in
+        orderWindow: ((UInt32) -> Void)? = nil,
+        visibleWindowInfoProvider: (() -> [WindowServerInfo])? = nil,
+        visibleOwnedWindowsProvider: (() -> [NSWindow])? = nil,
+        frontOwnedWindow: ((NSWindow) -> Void)? = nil
+    ) {
+        self.controller = controller
+        self.orderWindow = orderWindow ?? { SkyLight.shared.orderWindow($0, relativeTo: 0, order: .above) }
+        self.visibleWindowInfoProvider = visibleWindowInfoProvider ?? { SkyLight.shared.queryAllVisibleWindows() }
+        self.visibleOwnedWindowsProvider = visibleOwnedWindowsProvider ?? { OwnedWindowRegistry.shared.visibleWindows(kind: .utility) }
+        self.frontOwnedWindow = frontOwnedWindow ?? { window in
             NSApp.activate(ignoringOtherApps: true)
             window.makeKeyAndOrderFront(nil)
         }
-    ) {
-        self.controller = controller
-        self.visibleWindowInfoProvider = visibleWindowInfoProvider
-        self.visibleOwnedWindowsProvider = visibleOwnedWindowsProvider
-        self.frontOwnedWindow = frontOwnedWindow
     }
 
     func openMenuAnywhere() {
@@ -174,7 +173,7 @@ final class WindowActionHandler {
 
         for batch in plan.batches {
             for surface in batch {
-                controller.performWindowOrdering(windowId: surface.windowId)
+                orderWindow(UInt32(surface.windowId))
             }
             guard let anchor = batch.last else { continue }
             front(surface: anchor)
@@ -211,7 +210,7 @@ final class WindowActionHandler {
             suppressesFocusFollowsMouse: true,
             duration: 0.35
         )
-        controller.performWindowOrdering(windowId: entry.windowId)
+        orderWindow(UInt32(entry.windowId))
         controller.focusWindow(token)
         return true
     }

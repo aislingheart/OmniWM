@@ -55,8 +55,7 @@ struct NiriCreateFocusTraceEvent: Equatable {
             nativeSpaceMonitorId: Monitor.ID?,
             frameMonitorId: Monitor.ID?,
             interactionWorkspaceId: WorkspaceDescriptor.ID?,
-            interactionMonitorId: Monitor.ID?,
-            ruleSkipReason: WorkspaceRuleSkipReason?
+            interactionMonitorId: Monitor.ID?
         )
         case candidateTracked(token: WindowToken, axPid: pid_t?, workspaceId: WorkspaceDescriptor.ID)
         case relayoutActivatedWindow(token: WindowToken, workspaceId: WorkspaceDescriptor.ID)
@@ -118,10 +117,9 @@ extension NiriCreateFocusTraceEvent: CustomStringConvertible {
             nativeSpaceMonitorId,
             frameMonitorId,
             interactionWorkspaceId,
-            interactionMonitorId,
-            ruleSkipReason
+            interactionMonitorId
         ):
-            "create_placement_resolved token=\(token) workspace=\(workspaceId.uuidString) rung=\(rung.rawValue) rule_skip=\(ruleSkipReason?.rawValue ?? "none") pending_workspace=\(pendingWorkspaceId?.uuidString ?? "nil") pending_monitor=\(String(describing: pendingMonitorId)) focused_workspace=\(focusedWorkspaceId?.uuidString ?? "nil") focused_monitor=\(String(describing: focusedMonitorId)) native_monitor=\(String(describing: nativeSpaceMonitorId)) frame_monitor=\(String(describing: frameMonitorId)) interaction_workspace=\(interactionWorkspaceId?.uuidString ?? "nil") interaction_monitor=\(String(describing: interactionMonitorId))"
+            "create_placement_resolved token=\(token) workspace=\(workspaceId.uuidString) rung=\(rung.rawValue) pending_workspace=\(pendingWorkspaceId?.uuidString ?? "nil") pending_monitor=\(String(describing: pendingMonitorId)) focused_workspace=\(focusedWorkspaceId?.uuidString ?? "nil") focused_monitor=\(String(describing: focusedMonitorId)) native_monitor=\(String(describing: nativeSpaceMonitorId)) frame_monitor=\(String(describing: frameMonitorId)) interaction_workspace=\(interactionWorkspaceId?.uuidString ?? "nil") interaction_monitor=\(String(describing: interactionMonitorId))"
         case let .candidateTracked(token, axPid, workspaceId):
             "candidate_tracked token=\(token) ax_pid=\(axPid.map(String.init) ?? "nil") workspace=\(workspaceId.uuidString)"
         case let .relayoutActivatedWindow(token, workspaceId):
@@ -187,7 +185,7 @@ final class AXEventHandler {
         let replacementMetadata: ManagedReplacementMetadata
         let structuralReplacementMatch: StructuralReplacementMatch?
         let requiresPostCreateLifecycleVerification: Bool
-        let interactionPolicy: WindowInteractionPolicy
+        let heuristicReasons: [AXWindowHeuristicReason]
 
         var bundleId: String? {
             replacementMetadata.bundleId
@@ -389,6 +387,7 @@ final class AXEventHandler {
     var createPlacementContextsByWindowId: [UInt32: WindowCreatePlacementContext] = [:]
     private var pendingManagedReplacementBursts: [ManagedReplacementKey: PendingManagedReplacementBurst] = [:]
     private var pendingManagedReplacementTasks: [ManagedReplacementKey: Task<Void, Never>] = [:]
+    private var activeDragSettlementTasks: [UInt32: Task<Void, Never>] = [:]
     private var pendingWindowRuleReevaluationTask: Task<Void, Never>?
     private var pendingWindowRuleReevaluationTargets: Set<WindowRuleReevaluationTarget> = []
     private var pendingWindowRuleReevaluationGeneration: UInt64 = 0
@@ -420,16 +419,12 @@ final class AXEventHandler {
 
     init(
         controller: WMController,
-        visibleWindowInfoProvider: @escaping () -> [WindowServerInfo] = {
-            SkyLight.shared.queryAllVisibleWindows()
-        },
-        windowInfoProvider: @escaping (UInt32) -> WindowServerInfo? = {
-            SkyLight.shared.queryWindowInfo($0)
-        }
+        visibleWindowInfoProvider: (() -> [WindowServerInfo])? = nil,
+        windowInfoProvider: ((UInt32) -> WindowServerInfo?)? = nil
     ) {
         self.controller = controller
-        self.visibleWindowInfoProvider = visibleWindowInfoProvider
-        self.windowInfoProvider = windowInfoProvider
+        self.visibleWindowInfoProvider = visibleWindowInfoProvider ?? { SkyLight.shared.queryAllVisibleWindows() }
+        self.windowInfoProvider = windowInfoProvider ?? { SkyLight.shared.queryWindowInfo($0) }
     }
 
     func setup() {
@@ -1014,9 +1009,46 @@ final class AXEventHandler {
             return
         }
 
-        if (NSEvent.pressedMouseButtons & 1) != 0 {
+        let isLeftMouseDown = (NSEvent.pressedMouseButtons & 1) != 0
+
+        if isLeftMouseDown {
+            // User is actively dragging (resizing or moving/relocating).
+            // Do NOT apply layout frames back to the window while mouse button is held down (avoids mouse fighting).
+            activeDragSettlementTasks[windowId]?.cancel()
+            activeDragSettlementTasks[windowId] = Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 120_000_000)
+                guard !Task.isCancelled, let self else { return }
+                while (NSEvent.pressedMouseButtons & 1) != 0 {
+                    try? await Task.sleep(nanoseconds: 40_000_000)
+                    if Task.isCancelled { return }
+                }
+                self.activeDragSettlementTasks.removeValue(forKey: windowId)
+                self.processSettledFrameChange(windowId: windowId)
+            }
             return
         }
+
+        activeDragSettlementTasks.removeValue(forKey: windowId)?.cancel()
+        processSettledFrameChange(windowId: windowId)
+    }
+
+    private func processSettledFrameChange(windowId: UInt32) {
+        guard let controller else { return }
+        guard controller.workspaceManager.entry(forWindowId: Int(windowId)) != nil else { return }
+        let windowServerToken = resolveWindowToken(windowId)
+        let resolvedToken = resolveTrackedToken(
+            windowId,
+            resolvedWindowToken: windowServerToken
+        )
+        guard let token = resolvedToken else { return }
+        guard let entry = controller.workspaceManager.entry(for: token) else { return }
+        guard isWindowDisplayable(token: token) else { return }
+
+        let focusedObservedFrame = observedFrameForFocusedFrameChange(
+            windowId: windowId,
+            windowServerToken: windowServerToken,
+            resolvedToken: resolvedToken
+        )
 
         if shouldSuppressFrameChangedRelayout(
             for: entry,
@@ -1036,27 +1068,48 @@ final class AXEventHandler {
             return
         }
 
-        if entry.mode == .tiling,
-           controller.workspaceManager.activeLayoutKind(for: entry.workspaceId) == .dwindle,
-           let engine = controller.dwindleEngine,
-           let monitor = controller.workspaceManager.monitor(for: entry.workspaceId),
-           let newFrame = focusedObservedFrame ?? observedFrame(for: entry),
-           let oldFrame = controller.axManager.lastAppliedFrame(for: entry.windowId) ?? observedFrame(for: entry)
-        {
-            let innerGap = controller.settings.resolvedDwindleSettings(for: monitor).innerGap
-            engine.handleExternalFrameChange(
-                for: token,
-                in: entry.workspaceId,
-                oldFrame: oldFrame,
-                newFrame: newFrame,
-                innerGap: innerGap
-            )
-        }
+        if let newFrame = focusedObservedFrame ?? observedFrame(for: entry) {
+            var updated = false
 
-        controller.layoutRefreshController.requestRelayout(
-            reason: .axWindowChanged,
-            affectedWorkspaceIds: [entry.workspaceId]
-        )
+            if let dwindleEngine = controller.workspaceManager.dwindleEngine,
+               let leaf = dwindleEngine.findNode(for: token, in: entry.workspaceId),
+               let oldFrame = leaf.cachedFrame
+            {
+                updated = dwindleEngine.handleExternalFrameChange(
+                    for: token,
+                    in: entry.workspaceId,
+                    oldFrame: oldFrame,
+                    newFrame: newFrame,
+                    innerGap: dwindleEngine.settings.innerGap
+                )
+            }
+
+            if let niriEngine = controller.workspaceManager.niriEngine,
+               let windowNode = niriEngine.findNode(for: token, in: entry.workspaceId),
+               let oldFrame = windowNode.renderedFrame ?? windowNode.frame
+            {
+                updated = niriEngine.handleExternalFrameChange(
+                    for: token,
+                    in: entry.workspaceId,
+                    oldFrame: oldFrame,
+                    newFrame: newFrame
+                )
+            }
+
+            if updated {
+                controller.axManager.confirmFrameWrite(for: entry.windowId, frame: newFrame)
+                controller.layoutRefreshController.requestImmediateRelayout(
+                    reason: .interactiveGesture,
+                    affectedWorkspaceIds: [entry.workspaceId]
+                )
+                controller.windowFrameReconciler.triggerHighFrequencyBurst(durationSeconds: 10.0)
+            } else {
+                controller.layoutRefreshController.requestRelayout(
+                    reason: .axWindowChanged,
+                    affectedWorkspaceIds: [entry.workspaceId]
+                )
+            }
+        }
     }
 
     private func shouldSuppressFrameChangedRelayout(
@@ -1132,8 +1185,9 @@ final class AXEventHandler {
     }
 
     func drainDeferredCreatedWindows(
-        spaceIdsForWindow: (UInt32) -> [UInt64] = { SkyLight.shared.spacesForWindow($0) }
+        spaceIdsForWindow: ((UInt32) -> [UInt64])? = nil
     ) async {
+        let spaceIdsForWindow = spaceIdsForWindow ?? { SkyLight.shared.spacesForWindow($0) }
         guard !deferredCreatedWindowOrder.isEmpty else { return }
 
         let deferredWindowIds = deferredCreatedWindowOrder
@@ -1783,9 +1837,7 @@ final class AXEventHandler {
 
         let appFullscreen = focusedWindow.isFullscreen
 
-        if let entry = controller.workspaceManager.entry(for: token),
-           entry.interactionPolicy.mayFocus
-        {
+        if let entry = controller.workspaceManager.entry(for: token) {
             discardCreatePlacementContext(for: token.windowId)
             if appFullscreen {
                 suspendManagedWindowForNativeFullscreen(entry)
@@ -1987,10 +2039,9 @@ final class AXEventHandler {
         switch outcome {
         case let .prepared(prepared):
             candidate = prepared
-        case let .alreadyTracked(trackedToken):
+        case .alreadyTracked:
             discardCreatePlacementContext(windowId: windowId)
-            let policy = controller.workspaceManager.entry(for: trackedToken)?.interactionPolicy ?? .full
-            return policy.mayFocus ? .handled : .rejected
+            return .handled
         case .identityRebindPending:
             return .handled
         case let .pending(pendingToken, pendingAXRef, reason):
@@ -2132,7 +2183,6 @@ final class AXEventHandler {
         bindCurrentPidRequest: Bool = true
     ) -> Bool {
         guard let controller else { return false }
-        guard entry.interactionPolicy.mayFocus else { return false }
         if shouldSuppressObservedManagedActivation(
             entry: entry,
             requestDisposition: requestDisposition,
@@ -2632,7 +2682,6 @@ final class AXEventHandler {
             windowInfo: matchingWindowInfo,
             windowServerLookupAttempted: true
         )
-        let interactionPolicy = WindowInteractionPolicy.resolve(for: evaluation)
         WindowAdmissionTrace.record(
             .init(
                 action: .classificationObserved,
@@ -2641,11 +2690,21 @@ final class AXEventHandler {
                 bundleId: bundleId ?? evaluation.facts.ax.bundleId,
                 axPid: axPid,
                 observation: WindowClassificationObservation(
-                    token: token,
-                    bundleId: bundleId,
+                    tokenPid: token.pid,
+                    tokenWindowId: token.windowId,
+                    appName: evaluation.facts.appName,
+                    bundleId: bundleId ?? evaluation.facts.ax.bundleId,
+                    workspaceName: evaluation.decision.workspaceName,
                     rulesRevision: controller.settings.appRulesRevision,
-                    evaluation: evaluation,
-                    policy: interactionPolicy
+                    input: WindowClassificationInput(
+                        appName: evaluation.facts.appName,
+                        ax: AXWindowFactsDTO(from: evaluation.facts.ax),
+                        sizeConstraints: evaluation.facts.sizeConstraints.map(WindowSizeConstraintsDTO.init(from:)),
+                        windowServer: evaluation.facts.windowServer.map(WindowServerInfoDTO.init(from:)),
+                        appFullscreen: evaluation.appFullscreen,
+                        manualOverride: evaluation.manualOverride
+                    ),
+                    observedDecision: WindowClassificationDecisionDTO(from: evaluation.decision)
                 ),
                 classificationRulesSnapshot: controller.settings.appRulesDiagnosticSnapshot,
                 axRef: axRef
@@ -2729,7 +2788,7 @@ final class AXEventHandler {
                 trackedMode: trackedMode,
                 facts: evaluation.facts
             ),
-            interactionPolicy: interactionPolicy
+            heuristicReasons: evaluation.decision.heuristicReasons
         )
         WindowAdmissionTrace.record(
             .init(
@@ -3962,8 +4021,9 @@ final class AXEventHandler {
 extension AXEventHandler {
     private func liveCreateSpace(
         for windowId: UInt32,
-        spaceIdsForWindow: (UInt32) -> [UInt64] = { SkyLight.shared.spacesForWindow($0) }
+        spaceIdsForWindow: ((UInt32) -> [UInt64])? = nil
     ) -> UInt64 {
+        let spaceIdsForWindow = spaceIdsForWindow ?? { SkyLight.shared.spacesForWindow($0) }
         guard let controller else { return 0 }
         return controller.workspaceManager.spaceTopology
             .selectWindowSpace(from: spaceIdsForWindow(windowId)) ?? 0
