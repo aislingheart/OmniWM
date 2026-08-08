@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 // Copyright (C) 2026 BarutSRB — https://github.com/BarutSRB/OmniWM
 
+import AppKit
 import CoreGraphics
 import Foundation
 
@@ -62,6 +63,9 @@ final class WindowFrameReconciler {
 
     func reconcileManagedFrames() {
         guard let controller else { return }
+        if (NSEvent.pressedMouseButtons & 1) != 0 {
+            return
+        }
         let entries = controller.workspaceManager.allEntries()
         var workspaceIdsToRefresh: Set<WorkspaceDescriptor.ID> = []
 

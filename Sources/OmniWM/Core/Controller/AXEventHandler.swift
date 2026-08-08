@@ -1014,6 +1014,10 @@ final class AXEventHandler {
             return
         }
 
+        if (NSEvent.pressedMouseButtons & 1) != 0 {
+            return
+        }
+
         if shouldSuppressFrameChangedRelayout(
             for: entry,
             observedFrame: focusedObservedFrame
@@ -1030,6 +1034,23 @@ final class AXEventHandler {
            )
         {
             return
+        }
+
+        if entry.mode == .tiling,
+           controller.workspaceManager.activeLayoutKind(for: entry.workspaceId) == .dwindle,
+           let engine = controller.dwindleEngine,
+           let monitor = controller.workspaceManager.monitor(for: entry.workspaceId),
+           let newFrame = focusedObservedFrame ?? observedFrame(for: entry),
+           let oldFrame = controller.axManager.lastAppliedFrame(for: entry.windowId) ?? observedFrame(for: entry)
+        {
+            let innerGap = controller.settings.resolvedDwindleSettings(for: monitor).innerGap
+            engine.handleExternalFrameChange(
+                for: token,
+                in: entry.workspaceId,
+                oldFrame: oldFrame,
+                newFrame: newFrame,
+                innerGap: innerGap
+            )
         }
 
         controller.layoutRefreshController.requestRelayout(
