@@ -169,14 +169,14 @@ final class UpdateCoordinator: AppUpdateCoordinating {
 
     init(
         settings: SettingsStore,
-        runtimeState: RuntimeStateStore? = nil,
+        runtimeState: RuntimeStateStore = RuntimeStateStore(),
         releaseService: any GitHubReleaseFetching = GitHubReleaseService(
             userAgent: "OmniWM/\(Bundle.main.appVersion ?? "unknown")"
         ),
         currentVersionProvider: @escaping () -> ReleaseVersion? = { Bundle.main.releaseVersion },
         currentVersionStringProvider: @escaping () -> String = { Bundle.main.appVersion ?? "Unknown" },
         nowProvider: @escaping () -> Date = Date.init,
-        windowController: any UpdateWindowControlling? = nil,
+        windowController: any UpdateWindowControlling = UpdateWindowController.shared,
         infoAlertPresenter: @escaping (String, String) -> Void = { title, message in
             let alert = NSAlert()
             alert.alertStyle = .informational
@@ -196,12 +196,12 @@ final class UpdateCoordinator: AppUpdateCoordinating {
         }
     ) {
         self.settings = settings
-        self.runtimeState = runtimeState ?? RuntimeStateStore()
+        self.runtimeState = runtimeState
         self.releaseService = releaseService
         self.currentVersionProvider = currentVersionProvider
         self.currentVersionStringProvider = currentVersionStringProvider
         self.nowProvider = nowProvider
-        self.windowController = windowController ?? UpdateWindowController.shared
+        self.windowController = windowController
         self.infoAlertPresenter = infoAlertPresenter
         self.openURL = openURL
         self.copyCommandToPasteboard = copyCommandToPasteboard

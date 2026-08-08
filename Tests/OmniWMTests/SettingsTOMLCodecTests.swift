@@ -195,10 +195,10 @@ final class SettingsTOMLCodecTests: XCTestCase {
     }
 
     func testMouseMoveModifierRoundTrips() throws {
-        XCTAssertEqual(SettingsExport.defaults().mouseMoveModifierKey, MouseMoveModifierKey.controlOptionCommandShift.rawValue)
+        XCTAssertEqual(SettingsExport.defaults().mouseMoveModifierKey, MouseMoveModifierKey.option.rawValue)
         XCTAssertTrue(
             String(decoding: try SettingsTOMLCodec.encode(.defaults()), as: UTF8.self)
-                .contains("mouseMoveModifierKey = \"controlOptionCommandShift\"")
+                .contains("mouseMoveModifierKey = \"option\"")
         )
 
         for modifier in [MouseMoveModifierKey.off, .controlOption] {
@@ -212,26 +212,26 @@ final class SettingsTOMLCodecTests: XCTestCase {
 
     func testMouseMoveModifierRecoversToOptionWhenMissing() throws {
         let withoutKey = try defaultsWithReplacements(
-            ("mouseMoveModifierKey = \"controlOptionCommandShift\"\n", "")
+            ("mouseMoveModifierKey = \"option\"\n", "")
         )
 
         XCTAssertEqual(
             try SettingsTOMLCodec.decode(withoutKey).mouseMoveModifierKey,
-            MouseMoveModifierKey.controlOptionCommandShift.rawValue
+            MouseMoveModifierKey.option.rawValue
         )
     }
 
     @MainActor
     func testUnsupportedMouseMoveModifierFallsBackToOptionWhenApplied() throws {
         var export = SettingsExport.defaults()
-        export.mouseMoveModifierKey = "unsupported_key"
+        export.mouseMoveModifierKey = "shift"
         let decoded = try SettingsTOMLCodec.decode(SettingsTOMLCodec.encode(export))
         let settings = makeSettingsStore()
 
         settings.applyExport(decoded)
 
-        XCTAssertEqual(settings.mouseMoveModifierKey, .controlOptionCommandShift)
-        XCTAssertEqual(settings.toExport().mouseMoveModifierKey, MouseMoveModifierKey.controlOptionCommandShift.rawValue)
+        XCTAssertEqual(settings.mouseMoveModifierKey, .option)
+        XCTAssertEqual(settings.toExport().mouseMoveModifierKey, MouseMoveModifierKey.option.rawValue)
     }
 
     @MainActor
@@ -248,7 +248,7 @@ final class SettingsTOMLCodecTests: XCTestCase {
 
     func testMalformedMouseMoveModifierTypeRejectsDecode() throws {
         let malformed = try defaultsWithReplacements(
-            ("mouseMoveModifierKey = \"controlOptionCommandShift\"\n", "mouseMoveModifierKey = 3\n")
+            ("mouseMoveModifierKey = \"option\"\n", "mouseMoveModifierKey = 3\n")
         )
 
         XCTAssertThrowsError(try SettingsTOMLCodec.decode(malformed))

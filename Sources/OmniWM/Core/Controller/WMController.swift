@@ -216,8 +216,6 @@ final class WMController {
     @ObservationIgnored
     private(set) lazy var serviceLifecycleManager = ServiceLifecycleManager(controller: self)
     @ObservationIgnored
-    private(set) lazy var windowFrameReconciler = WindowFrameReconciler(controller: self)
-    @ObservationIgnored
     private var windowActionHandlerStorage: WindowActionHandler?
     var windowActionHandler: WindowActionHandler {
         if let windowActionHandlerStorage {
@@ -255,10 +253,10 @@ final class WMController {
     init(
         settings: SettingsStore,
         hiddenBarController: HiddenBarController? = nil,
-        clipboardHistoryDirectory: URL? = nil,
-        diagnosticsDirectory: URL? = nil,
-        windowFocusOperations: WindowFocusOperations? = nil,
-        ownedWindowRegistry: OwnedWindowRegistry? = nil,
+        clipboardHistoryDirectory: URL = OmniWMStoragePaths.live.stateDirectory,
+        diagnosticsDirectory: URL = OmniWMStoragePaths.live.diagnosticsDirectory,
+        windowFocusOperations: WindowFocusOperations = .live,
+        ownedWindowRegistry: OwnedWindowRegistry = .shared,
         workspaceBarIconResolver: WorkspaceBarIconResolver? = nil
     ) {
         self.settings = settings
@@ -266,11 +264,11 @@ final class WMController {
             ?? WorkspaceBarIconResolver(settingsFileURL: settings.settingsFileURL)
         motionPolicy = MotionPolicy(animationsEnabled: settings.animationsEnabled)
         self.hiddenBarController = hiddenBarController ?? HiddenBarController(settings: settings)
-        self.clipboardHistoryDirectory = clipboardHistoryDirectory ?? OmniWMStoragePaths.live.stateDirectory
-        self.diagnosticsDirectory = diagnosticsDirectory ?? OmniWMStoragePaths.live.diagnosticsDirectory
-        traceCaptureCoordinator = RuntimeTraceCaptureCoordinator(diagnosticsDirectory: self.diagnosticsDirectory)
-        self.windowFocusOperations = windowFocusOperations ?? .live
-        self.ownedWindowRegistry = ownedWindowRegistry ?? .shared
+        self.clipboardHistoryDirectory = clipboardHistoryDirectory
+        self.diagnosticsDirectory = diagnosticsDirectory
+        traceCaptureCoordinator = RuntimeTraceCaptureCoordinator(diagnosticsDirectory: diagnosticsDirectory)
+        self.windowFocusOperations = windowFocusOperations
+        self.ownedWindowRegistry = ownedWindowRegistry
         workspaceManager = WorkspaceManager(settings: settings)
         focusPolicyEngine = FocusPolicyEngine()
         if self.workspaceBarIconResolver.synchronize(

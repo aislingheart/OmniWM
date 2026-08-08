@@ -10,8 +10,8 @@ final class OwnedWindowRegistry {
 
     private let surfaceCoordinator: SurfaceCoordinator
 
-    init(surfaceCoordinator: SurfaceCoordinator? = nil) {
-        self.surfaceCoordinator = surfaceCoordinator ?? .shared
+    init(surfaceCoordinator: SurfaceCoordinator = .shared) {
+        self.surfaceCoordinator = surfaceCoordinator
     }
 
     func register(_ window: NSWindow) {

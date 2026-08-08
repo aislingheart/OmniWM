@@ -10,7 +10,6 @@ enum MouseMoveModifierKey: String, CaseIterable, Codable {
     case optionCommand
     case controlCommand
     case controlOptionCommand
-    case controlOptionCommandShift
 
     var displayName: String {
         switch self {
@@ -22,7 +21,6 @@ enum MouseMoveModifierKey: String, CaseIterable, Codable {
         case .optionCommand: "Option+Command"
         case .controlCommand: "Control+Command"
         case .controlOptionCommand: "Control+Option+Command"
-        case .controlOptionCommandShift: "Control+Option+Command+Shift (Hyper)"
         }
     }
 }

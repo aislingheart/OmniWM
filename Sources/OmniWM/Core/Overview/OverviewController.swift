@@ -183,15 +183,15 @@ final class OverviewController {
     init(
         wmController: WMController,
         motionPolicy: MotionPolicy,
-        environment: OverviewEnvironment? = nil,
-        ownedWindowRegistry: OwnedWindowRegistry? = nil
+        environment: OverviewEnvironment = .init(),
+        ownedWindowRegistry: OwnedWindowRegistry = .shared
     ) {
         let appearance = OverviewAppearance(settings: wmController.settings)
         let configuredScale = OverviewLayoutCalculator.clampedScale(CGFloat(wmController.settings.overviewZoom))
         self.wmController = wmController
         self.motionPolicy = motionPolicy
-        self.environment = environment ?? OverviewEnvironment()
-        self.ownedWindowRegistry = ownedWindowRegistry ?? .shared
+        self.environment = environment
+        self.ownedWindowRegistry = ownedWindowRegistry
         self.configuredScale = configuredScale
         scale = configuredScale
         self.appearance = appearance

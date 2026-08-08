@@ -80,7 +80,6 @@ extension MouseMoveModifierKey {
         case .optionCommand: [.maskAlternate, .maskCommand]
         case .controlCommand: [.maskControl, .maskCommand]
         case .controlOptionCommand: [.maskControl, .maskAlternate, .maskCommand]
-        case .controlOptionCommandShift: [.maskControl, .maskAlternate, .maskCommand, .maskShift]
         }
     }
 }
