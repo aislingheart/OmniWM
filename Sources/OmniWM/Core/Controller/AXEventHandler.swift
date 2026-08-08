@@ -55,7 +55,8 @@ struct NiriCreateFocusTraceEvent: Equatable {
             nativeSpaceMonitorId: Monitor.ID?,
             frameMonitorId: Monitor.ID?,
             interactionWorkspaceId: WorkspaceDescriptor.ID?,
-            interactionMonitorId: Monitor.ID?
+            interactionMonitorId: Monitor.ID?,
+            ruleSkipReason: WorkspaceRuleSkipReason? = nil
         )
         case candidateTracked(token: WindowToken, axPid: pid_t?, workspaceId: WorkspaceDescriptor.ID)
         case relayoutActivatedWindow(token: WindowToken, workspaceId: WorkspaceDescriptor.ID)
@@ -117,9 +118,10 @@ extension NiriCreateFocusTraceEvent: CustomStringConvertible {
             nativeSpaceMonitorId,
             frameMonitorId,
             interactionWorkspaceId,
-            interactionMonitorId
+            interactionMonitorId,
+            ruleSkipReason
         ):
-            "create_placement_resolved token=\(token) workspace=\(workspaceId.uuidString) rung=\(rung.rawValue) pending_workspace=\(pendingWorkspaceId?.uuidString ?? "nil") pending_monitor=\(String(describing: pendingMonitorId)) focused_workspace=\(focusedWorkspaceId?.uuidString ?? "nil") focused_monitor=\(String(describing: focusedMonitorId)) native_monitor=\(String(describing: nativeSpaceMonitorId)) frame_monitor=\(String(describing: frameMonitorId)) interaction_workspace=\(interactionWorkspaceId?.uuidString ?? "nil") interaction_monitor=\(String(describing: interactionMonitorId))"
+            "create_placement_resolved token=\(token) workspace=\(workspaceId.uuidString) rung=\(rung.rawValue) pending_workspace=\(pendingWorkspaceId?.uuidString ?? "nil") pending_monitor=\(String(describing: pendingMonitorId)) focused_workspace=\(focusedWorkspaceId?.uuidString ?? "nil") focused_monitor=\(String(describing: focusedMonitorId)) native_monitor=\(String(describing: nativeSpaceMonitorId)) frame_monitor=\(String(describing: frameMonitorId)) interaction_workspace=\(interactionWorkspaceId?.uuidString ?? "nil") interaction_monitor=\(String(describing: interactionMonitorId)) rule_skip=\(ruleSkipReason?.rawValue ?? "nil")"
         case let .candidateTracked(token, axPid, workspaceId):
             "candidate_tracked token=\(token) ax_pid=\(axPid.map(String.init) ?? "nil") workspace=\(workspaceId.uuidString)"
         case let .relayoutActivatedWindow(token, workspaceId):
@@ -186,6 +188,31 @@ final class AXEventHandler {
         let structuralReplacementMatch: StructuralReplacementMatch?
         let requiresPostCreateLifecycleVerification: Bool
         let heuristicReasons: [AXWindowHeuristicReason]
+        var interactionPolicy: WindowInteractionPolicy
+
+        init(
+            windowId: UInt32,
+            token: WindowToken,
+            axRef: AXWindowRef,
+            ruleEffects: ManagedWindowRuleEffects,
+            admissionHints: ManagedWindowAdmissionHints,
+            replacementMetadata: ManagedReplacementMetadata,
+            structuralReplacementMatch: StructuralReplacementMatch?,
+            requiresPostCreateLifecycleVerification: Bool,
+            heuristicReasons: [AXWindowHeuristicReason] = [],
+            interactionPolicy: WindowInteractionPolicy = .full
+        ) {
+            self.windowId = windowId
+            self.token = token
+            self.axRef = axRef
+            self.ruleEffects = ruleEffects
+            self.admissionHints = admissionHints
+            self.replacementMetadata = replacementMetadata
+            self.structuralReplacementMatch = structuralReplacementMatch
+            self.requiresPostCreateLifecycleVerification = requiresPostCreateLifecycleVerification
+            self.heuristicReasons = heuristicReasons
+            self.interactionPolicy = interactionPolicy
+        }
 
         var bundleId: String? {
             replacementMetadata.bundleId
@@ -1837,7 +1864,9 @@ final class AXEventHandler {
 
         let appFullscreen = focusedWindow.isFullscreen
 
-        if let entry = controller.workspaceManager.entry(for: token) {
+        if let entry = controller.workspaceManager.entry(for: token),
+           entry.interactionPolicy.mayFocus
+        {
             discardCreatePlacementContext(for: token.windowId)
             if appFullscreen {
                 suspendManagedWindowForNativeFullscreen(entry)
@@ -2039,9 +2068,10 @@ final class AXEventHandler {
         switch outcome {
         case let .prepared(prepared):
             candidate = prepared
-        case .alreadyTracked:
+        case let .alreadyTracked(trackedToken):
             discardCreatePlacementContext(windowId: windowId)
-            return .handled
+            let policy = controller.workspaceManager.entry(for: trackedToken)?.interactionPolicy ?? .full
+            return policy.mayFocus ? .handled : .rejected
         case .identityRebindPending:
             return .handled
         case let .pending(pendingToken, pendingAXRef, reason):
@@ -2183,6 +2213,7 @@ final class AXEventHandler {
         bindCurrentPidRequest: Bool = true
     ) -> Bool {
         guard let controller else { return false }
+        guard entry.interactionPolicy.mayFocus else { return false }
         if shouldSuppressObservedManagedActivation(
             entry: entry,
             requestDisposition: requestDisposition,
