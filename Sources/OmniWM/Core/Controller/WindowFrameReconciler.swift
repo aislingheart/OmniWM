@@ -57,6 +57,7 @@ final class WindowFrameReconciler {
         for wsId in visibleWorkspaceIds {
             let entries = controller.workspaceManager.entries(in: wsId).filter { $0.mode == .tiling }
             var observedFrames: [(axRef: AXWindowRef, windowId: CGWindowID, targetFrame: CGRect, observedFrame: CGRect)] = []
+            var needsRelayout = false
 
             for entry in entries {
                 let token = entry.token
@@ -90,10 +91,7 @@ final class WindowFrameReconciler {
                     )
                     SkyLight.shared.transactionMove(UInt32(entry.windowId), origin: targetFrame.origin)
                     controller.axManager.confirmFrameWrite(for: entry.windowId, frame: targetFrame)
-                    controller.layoutRefreshController.requestImmediateRelayout(
-                        reason: .interactiveGesture,
-                        affectedWorkspaceIds: [wsId]
-                    )
+                    needsRelayout = true
                 }
             }
 
@@ -112,13 +110,17 @@ final class WindowFrameReconciler {
                             _ = AXWindowService.setFrame(b.axRef, frame: b.targetFrame, verify: false)
                             SkyLight.shared.transactionMove(UInt32(a.windowId), origin: a.targetFrame.origin)
                             SkyLight.shared.transactionMove(UInt32(b.windowId), origin: b.targetFrame.origin)
-                            controller.layoutRefreshController.requestImmediateRelayout(
-                                reason: .interactiveGesture,
-                                affectedWorkspaceIds: [wsId]
-                            )
+                            needsRelayout = true
                         }
                     }
                 }
+            }
+
+            if needsRelayout {
+                controller.layoutRefreshController.requestImmediateRelayout(
+                    reason: .interactiveGesture,
+                    affectedWorkspaceIds: [wsId]
+                )
             }
         }
     }
