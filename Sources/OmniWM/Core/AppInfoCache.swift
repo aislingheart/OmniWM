@@ -23,8 +23,13 @@ final class AppInfoCache {
     }
 
     func evictAll<S: Sequence>(_ pids: S) where S.Element == pid_t {
-        for pid in pids {
-            evict(pid: pid)
+        let set = Set(pids)
+        var removedAny = false
+        for pid in set where cache.removeValue(forKey: pid) != nil {
+            removedAny = true
+        }
+        if removedAny {
+            insertionOrder.removeAll { set.contains($0) }
         }
     }
 
