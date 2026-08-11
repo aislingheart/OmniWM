@@ -82,7 +82,9 @@ final class LockedWindowGenerationMap: @unchecked Sendable {
 
     func retainOnly(_ retainedIds: Set<Int>) {
         lock.lock()
-        generations = generations.filter { retainedIds.contains($0.key) }
+        for id in generations.keys where !retainedIds.contains(id) {
+            generations.removeValue(forKey: id)
+        }
         lock.unlock()
     }
 }
