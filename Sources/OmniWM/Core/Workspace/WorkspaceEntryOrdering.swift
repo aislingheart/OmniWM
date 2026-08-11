@@ -23,10 +23,8 @@ enum WorkspaceEntryOrdering {
                 orderMap[tile.token] = SortKey(group: 0, primary: columnIndex, secondary: rowIndex)
             }
         }
-        for (offset, entry) in entries.enumerated() {
-            if orderMap[entry.token] == nil {
-                orderMap[entry.token] = SortKey(group: 2, primary: offset, secondary: 0)
-            }
+        for (offset, entry) in entries.enumerated() where orderMap[entry.token] == nil {
+            orderMap[entry.token] = SortKey(group: 2, primary: offset, secondary: 0)
         }
 
         return entries.sorted { lhs, rhs in
