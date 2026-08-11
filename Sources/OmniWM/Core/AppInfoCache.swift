@@ -29,7 +29,13 @@ final class AppInfoCache {
     }
 
     func info(for pid: pid_t) -> AppInfo? {
-        if let cached = cache[pid] { return cached }
+        if let cached = cache[pid] {
+            if let index = insertionOrder.firstIndex(of: pid) {
+                insertionOrder.remove(at: index)
+                insertionOrder.append(pid)
+            }
+            return cached
+        }
         guard let app = NSRunningApplication(processIdentifier: pid) else { return nil }
         let info = AppInfo(
             name: app.localizedName,
